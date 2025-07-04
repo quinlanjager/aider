@@ -1592,7 +1592,9 @@ class Coder:
             tool_call_response = litellm.stream_chunk_builder(self.partial_response_tool_call)
             if await self.process_tool_calls(tool_call_response):
                 self.num_tool_calls += 1
-                run_result = await self.run(with_message="Continue with tool call response", preproc=False)
+                run_result = await self.run(
+                    with_message="Continue with tool call response", preproc=False
+                )
                 yield run_result
 
             self.num_tool_calls = 0
@@ -1744,8 +1746,9 @@ class Coder:
                     tool_responses.append(
                         {"role": "tool", "tool_call_id": tool_call.id, "content": result_text}
                     )
-            finally:
-                await server.disconnect()
+            except Exception as e:
+                self.io.tool_warning(f"Could not get server tools for {server.name}: {e}")
+
             return tool_responses
 
         # Execute all tool calls concurrently
@@ -1783,8 +1786,6 @@ class Coder:
             except Exception as e:
                 self.io.tool_warning(f"Error initializing MCP server {server.name}:\n{e}")
                 return None
-            finally:
-                await server.disconnect()
 
         async def get_all_server_tools():
             results = [await get_server_tools(server) for server in self.mcp_servers]
