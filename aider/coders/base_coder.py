@@ -1788,7 +1788,8 @@ class Coder:
                 return None
 
         async def get_all_server_tools():
-            results = [await get_server_tools(server) for server in self.mcp_servers]
+            tasks = [get_server_tools(server) for server in self.mcp_servers]
+            results = await asyncio.gather(*tasks)
             return [result for result in results if result is not None]
 
         if self.mcp_servers:
