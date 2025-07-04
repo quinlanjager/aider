@@ -1732,24 +1732,43 @@ class Coder:
 
         # Define the coroutine to execute all tool calls for a single server
         async def _exec_server_tools(server, tool_calls_list):
-            tool_responses = []
+            server_tool_responses = []
             try:
                 # Connect to the server once
                 session = await server.connect()
                 # Execute all tool calls for this server
                 for tool_call in tool_calls_list:
-                    call_result = await experimental_mcp_client.call_openai_tool(
-                        session=session,
-                        openai_tool=tool_call,
-                    )
-                    result_text = str(call_result.content[0].text)
-                    tool_responses.append(
-                        {"role": "tool", "tool_call_id": tool_call.id, "content": result_text}
-                    )
+                    try:
+                        call_result = await experimental_mcp_client.call_openai_tool(
+                            session=session,
+                            openai_tool=tool_call,
+                        )
+                        result_text = str(call_result.content[0].text)
+                        server_tool_responses.append(
+                            {"role": "tool", "tool_call_id": tool_call.id, "content": result_text}
+                        )
+                    except Exception as e:
+                        self.io.tool_warning(f"Could not execute tool call for {server.name}: {e}")
+                        server_tool_responses.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "content": f"Could not execute tool call: {e}",
+                            }
+                        )
             except Exception as e:
-                self.io.tool_warning(f"Could not get server tools for {server.name}: {e}")
+                self.io.tool_warning(f"Could not connect to server {server.name}: {e}")
+                # Return error responses for all tool calls for this server
+                for tool_call in tool_calls_list:
+                    server_tool_responses.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": f"Could not connect to server: {e}",
+                        }
+                    )
 
-            return tool_responses
+            return server_tool_responses
 
         # Execute all tool calls concurrently
         async def _execute_all_tool_calls():
@@ -1765,7 +1784,8 @@ class Coder:
             all_results = await _execute_all_tool_calls()
             # Flatten the results from all servers
             for server_results in all_results:
-                tool_responses.extend(server_results)
+                if isinstance(server_results, list):
+                    tool_responses.extend(server_results)
 
         return tool_responses
 
