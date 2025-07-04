@@ -449,7 +449,7 @@ def sanity_check_repo(repo, io):
     return False
 
 
-def main(argv=None, input=None, output=None, force_git_root=None, return_coder=False):
+async def main(argv=None, input=None, output=None, force_git_root=None, return_coder=False):
     report_uncaught_exceptions()
 
     if argv is None:
@@ -972,12 +972,12 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
     try:
         # Load MCP servers from config string or file
-        mcp_servers = load_mcp_servers(args.mcp_servers, args.mcp_servers_file, io, args.verbose)
+        mcp_servers = await load_mcp_servers(args.mcp_servers, args.mcp_servers_file, io, args.verbose)
 
         if not mcp_servers:
             mcp_servers = []
 
-        coder = Coder.create(
+        coder = await Coder.create(
             main_model=main_model,
             edit_format=args.edit_format,
             io=io,
@@ -1013,6 +1013,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             mcp_servers=mcp_servers,
             add_gitignore_files=args.add_gitignore_files,
         )
+
     except UnknownEditFormat as err:
         io.tool_error(str(err))
         io.offer_url(urls.edit_formats, "Open documentation about edit formats?")
@@ -1167,7 +1168,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     while True:
         try:
             coder.ok_to_warm_cache = bool(args.cache_keepalive_pings)
-            coder.run()
+            await coder.run()
             analytics.event("exit", reason="Completed main CLI coder.run")
             return
         except SwitchCoder as switch:
@@ -1182,7 +1183,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             if "show_announcements" in kwargs:
                 del kwargs["show_announcements"]
 
-            coder = Coder.create(**kwargs)
+            coder = await Coder.create(**kwargs)
 
             if switch.kwargs.get("show_announcements") is not False:
                 coder.show_announcements()

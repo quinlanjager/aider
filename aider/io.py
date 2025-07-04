@@ -663,6 +663,7 @@ class InputOutput:
                         key_bindings=kb,
                         complete_while_typing=True,
                         prompt_continuation=get_continuation,
+                        in_thread=True
                     )
                 else:
                     line = input(show)

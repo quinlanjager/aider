@@ -69,18 +69,18 @@ def _parse_mcp_servers_from_file(file_path, io, verbose=False):
     return servers
 
 
-def load_mcp_servers(mcp_servers, mcp_servers_file, io, verbose=False):
+async def load_mcp_servers(mcp_servers, mcp_servers_file, io, verbose=False):
     """Load MCP servers from a JSON string or file."""
     servers = []
 
     # First try to load from the JSON string (preferred)
     if mcp_servers:
         servers = _parse_mcp_servers_from_json_string(mcp_servers, io, verbose)
-        if servers:
-            return servers
-
     # If JSON string failed or wasn't provided, try the file
-    if mcp_servers_file:
+    elif mcp_servers_file:
         servers = _parse_mcp_servers_from_file(mcp_servers_file, io, verbose)
+
+    for s in servers:
+        await s.connect()
 
     return servers

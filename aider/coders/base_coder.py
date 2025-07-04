@@ -129,7 +129,7 @@ class Coder:
     mcp_tools = None
 
     @classmethod
-    def create(
+    async def create(
         self,
         main_model=None,
         edit_format=None,
@@ -198,6 +198,8 @@ class Coder:
             if hasattr(coder, "edit_format") and coder.edit_format == edit_format:
                 res = coder(main_model, io, **kwargs)
                 res.original_kwargs = dict(kwargs)
+                if res.mcp_servers:
+                    await res.initialize_mcp_tools()
                 return res
 
         valid_formats = [
@@ -539,9 +541,6 @@ class Coder:
         self.auto_test = auto_test
         self.test_cmd = test_cmd
 
-        # Instantiate MCP tools
-        if self.mcp_servers:
-            self.initialize_mcp_tools()
         # validate the functions jsonschema
         if self.functions:
             from jsonschema import Draft7Validator
@@ -871,10 +870,11 @@ class Coder:
 
         return {"role": "user", "content": image_messages}
 
-    def run_stream(self, user_message):
+    async def run_stream(self, user_message):
         self.io.user_input(user_message)
         self.init_before_message()
-        yield from self.send_message(user_message)
+        async for tok in self.send_message(user_message):
+            yield tok
 
     def init_before_message(self):
         self.aider_edited_files = set()
@@ -888,18 +888,18 @@ class Coder:
         if self.repo:
             self.commit_before_message.append(self.repo.get_head_commit_sha())
 
-    def run(self, with_message=None, preproc=True):
+    async def run(self, with_message=None, preproc=True):
         try:
             if with_message:
                 self.io.user_input(with_message)
-                self.run_one(with_message, preproc)
+                await self.run_one(with_message, preproc)
                 return self.partial_response_content
             while True:
                 try:
                     if not self.io.placeholder:
                         self.copy_context()
                     user_message = self.get_input()
-                    self.run_one(user_message, preproc)
+                    await self.run_one(user_message, preproc)
                     self.show_undo_hint()
                 except KeyboardInterrupt:
                     self.keyboard_interrupt()
@@ -936,7 +936,7 @@ class Coder:
 
         return inp
 
-    def run_one(self, user_message, preproc):
+    async def run_one(self, user_message, preproc):
         self.init_before_message()
 
         if preproc:
@@ -946,7 +946,8 @@ class Coder:
 
         while message:
             self.reflected_message = None
-            list(self.send_message(message))
+            async for _ in self.send_message(message):
+                continue
 
             if not self.reflected_message:
                 break
@@ -1435,7 +1436,7 @@ class Coder:
                 return False
         return True
 
-    def send_message(self, inp):
+    async def send_message(self, inp):
         self.event("message_send_starting")
 
         # Notify IO that LLM processing is starting
@@ -1476,7 +1477,8 @@ class Coder:
         try:
             while True:
                 try:
-                    yield from self.send(messages, functions=self.functions)
+                    for v in self.send(messages, functions=self.functions):
+                        yield v
                     break
                 except litellm_ex.exceptions_tuple() as err:
                     ex_info = litellm_ex.get_ex_info(err)
@@ -1588,9 +1590,10 @@ class Coder:
 
             # Process any tools using MCP servers
             tool_call_response = litellm.stream_chunk_builder(self.partial_response_tool_call)
-            if self.process_tool_calls(tool_call_response):
+            if await self.process_tool_calls(tool_call_response):
                 self.num_tool_calls += 1
-                return self.run(with_message="Continue with tool call response", preproc=False)
+                run_result = await self.run(with_message="Continue with tool call response", preproc=False)
+                yield run_result
 
             self.num_tool_calls = 0
 
@@ -1650,7 +1653,7 @@ class Coder:
                     self.reflected_message = test_errors
                     return
 
-    def process_tool_calls(self, tool_call_response):
+    async def process_tool_calls(self, tool_call_response):
         if tool_call_response is None:
             return False
 
@@ -1662,7 +1665,7 @@ class Coder:
             self._print_tool_call_info(server_tool_calls)
 
             if self.io.confirm_ask("Run tools?"):
-                tool_responses = self._execute_tool_calls(server_tool_calls)
+                tool_responses = await self._execute_tool_calls(server_tool_calls)
 
                 # Add the assistant message with tool calls
                 # Converting to a dict so it can be safely dumped to json
@@ -1720,7 +1723,7 @@ class Coder:
 
         return server_tool_calls
 
-    def _execute_tool_calls(self, tool_calls):
+    async def _execute_tool_calls(self, tool_calls):
         """Process tool calls from the response and execute them if they match MCP tools.
         Returns a list of tool response messages."""
         tool_responses = []
@@ -1756,14 +1759,14 @@ class Coder:
 
         # Run the async execution and collect results
         if tool_calls:
-            all_results = asyncio.run(_execute_all_tool_calls())
+            all_results = await _execute_all_tool_calls()
             # Flatten the results from all servers
             for server_results in all_results:
                 tool_responses.extend(server_results)
 
         return tool_responses
 
-    def initialize_mcp_tools(self):
+    async def initialize_mcp_tools(self):
         """
         Initialize tools from all configured MCP servers. MCP Servers that fail to be
         initialized will not be available to the Coder instance.
@@ -1784,12 +1787,11 @@ class Coder:
                 await server.disconnect()
 
         async def get_all_server_tools():
-            tasks = [get_server_tools(server) for server in self.mcp_servers]
-            results = await asyncio.gather(*tasks)
+            results = [await get_server_tools(server) for server in self.mcp_servers]
             return [result for result in results if result is not None]
 
         if self.mcp_servers:
-            tools = asyncio.run(get_all_server_tools())
+            tools = await get_all_server_tools()
 
         if len(tools) > 0:
             self.io.tool_output("MCP servers configured:")
