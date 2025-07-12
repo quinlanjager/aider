@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import inspect
 from collections import OrderedDict
 from os.path import expanduser
 from pathlib import Path
@@ -284,7 +285,7 @@ class Commands:
 
         return commands
 
-    def do_run(self, cmd_name, args):
+    async def do_run(self, cmd_name, args):
         cmd_name = cmd_name.replace("-", "_")
         cmd_method_name = f"cmd_{cmd_name}"
         cmd_method = getattr(self, cmd_method_name, None)
@@ -293,6 +294,8 @@ class Commands:
             return
 
         try:
+            if inspect.iscoroutinefunction(cmd_method):
+                return await cmd_method(args)
             return cmd_method(args)
         except ANY_GIT_ERROR as err:
             self.io.tool_error(f"Unable to complete {cmd_name}: {err}")
@@ -309,10 +312,10 @@ class Commands:
         matching_commands = [cmd for cmd in all_commands if cmd.startswith(first_word)]
         return matching_commands, first_word, rest_inp
 
-    def run(self, inp):
+    async def run(self, inp):
         if inp.startswith("!"):
             self.coder.event("command_run")
-            return self.do_run("run", inp[1:])
+            return await self.do_run("run", inp[1:])
 
         res = self.matching_commands(inp)
         if res is None:
@@ -321,11 +324,11 @@ class Commands:
         if len(matching_commands) == 1:
             command = matching_commands[0][1:]
             self.coder.event(f"command_{command}")
-            return self.do_run(command, rest_inp)
+            return await self.do_run(command, rest_inp)
         elif first_word in matching_commands:
             command = first_word[1:]
             self.coder.event(f"command_{command}")
-            return self.do_run(command, rest_inp)
+            return await self.do_run(command, rest_inp)
         elif len(matching_commands) > 1:
             self.io.tool_error(f"Ambiguous command: {', '.join(matching_commands)}")
         else:
@@ -1136,7 +1139,7 @@ class Commands:
 """
         user_msg += "\n".join(self.coder.get_announcements()) + "\n"
 
-        coder.run(user_msg, preproc=False)
+        await coder.run(user_msg, preproc=False)
 
         if self.coder.repo_map:
             map_tokens = self.coder.repo_map.max_map_tokens
@@ -1166,30 +1169,30 @@ class Commands:
     def completions_context(self):
         raise CommandCompletionException()
 
-    def cmd_ask(self, args):
+    async def cmd_ask(self, args):
         """Ask questions about the code base without editing any files. If no prompt provided, switches to ask mode."""  # noqa
-        return self._generic_chat_command(args, "ask")
+        return await self._generic_chat_command(args, "ask")
 
-    def cmd_code(self, args):
+    async def cmd_code(self, args):
         """Ask for changes to your code. If no prompt provided, switches to code mode."""  # noqa
-        return self._generic_chat_command(args, self.coder.main_model.edit_format)
+        return await self._generic_chat_command(args, self.coder.main_model.edit_format)
 
-    def cmd_architect(self, args):
+    async def cmd_architect(self, args):
         """Enter architect/editor mode using 2 different models. If no prompt provided, switches to architect/editor mode."""  # noqa
-        return self._generic_chat_command(args, "architect")
+        return await self._generic_chat_command(args, "architect")
 
-    def cmd_context(self, args):
+    async def cmd_context(self, args):
         """Enter context mode to see surrounding code context. If no prompt provided, switches to context mode."""  # noqa
-        return self._generic_chat_command(args, "context", placeholder=args.strip() or None)
+        return await self._generic_chat_command(args, "context", placeholder=args.strip() or None)
 
-    def _generic_chat_command(self, args, edit_format, placeholder=None):
+    async def _generic_chat_command(self, args, edit_format, placeholder=None):
         if not args.strip():
             # Switch to the corresponding chat mode if no args provided
             return self.cmd_chat_mode(edit_format)
 
         from aider.coders.base_coder import Coder
 
-        coder = Coder.create(
+        coder = await Coder.create(
             io=self.io,
             from_coder=self.coder,
             edit_format=edit_format,
@@ -1197,7 +1200,7 @@ class Commands:
         )
 
         user_msg = args
-        coder.run(user_msg)
+        await coder.run(user_msg)
 
         # Use the provided placeholder if any
         raise SwitchCoder(
@@ -1441,7 +1444,7 @@ class Commands:
     def completions_raw_load(self, document, complete_event):
         return self.completions_raw_read_only(document, complete_event)
 
-    def cmd_load(self, args):
+    async def cmd_load(self, args):
         "Load and execute commands from a file"
         if not args.strip():
             self.io.tool_error("Please provide a filename containing commands to load.")
@@ -1464,7 +1467,7 @@ class Commands:
 
             self.io.tool_output(f"\nExecuting: {cmd}")
             try:
-                self.run(cmd)
+                await self.run(cmd)
             except SwitchCoder:
                 self.io.tool_error(
                     f"Command '{cmd}' is only supported in interactive mode, skipping."

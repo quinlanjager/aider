@@ -5,6 +5,7 @@ import sys
 import threading
 import traceback
 import webbrowser
+import asyncio
 from dataclasses import fields
 from pathlib import Path
 
@@ -1130,7 +1131,7 @@ async def main(argv=None, input=None, output=None, force_git_root=None, return_c
         io.tool_warning("Cost estimates may be inaccurate when using streaming and caching.")
 
     if args.load:
-        commands.cmd_load(args.load)
+        await commands.cmd_load(args.load)
 
     if args.message:
         io.add_to_input_history(args.message)
@@ -1279,5 +1280,5 @@ def load_slow_imports(swallow=True):
 
 
 if __name__ == "__main__":
-    status = main()
+    status = asyncio.run(main())
     sys.exit(status)

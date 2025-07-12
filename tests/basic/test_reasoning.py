@@ -13,7 +13,7 @@ from aider.reasoning_tags import (
 
 
 class TestReasoning(unittest.TestCase):
-    def test_send_with_reasoning_content(self):
+    async def test_send_with_reasoning_content(self):
         """Test that reasoning content is properly formatted and output."""
         # Setup IO with no pretty
         io = InputOutput(pretty=False)
@@ -21,7 +21,7 @@ class TestReasoning(unittest.TestCase):
 
         # Setup model and coder
         model = Model("gpt-3.5-turbo")
-        coder = Coder.create(model, None, io=io, stream=False)
+        coder = await Coder.create(model, None, io=io, stream=False)
 
         # Test data
         reasoning_content = "My step-by-step reasoning process"
@@ -74,7 +74,7 @@ class TestReasoning(unittest.TestCase):
                 reasoning_pos, main_pos, "Reasoning content should appear before main content"
             )
 
-    def test_send_with_reasoning_content_stream(self):
+    async def test_send_with_reasoning_content_stream(self):
         """Test that streaming reasoning content is properly formatted and output."""
         # Setup IO with pretty output for streaming
         io = InputOutput(pretty=True)
@@ -83,7 +83,7 @@ class TestReasoning(unittest.TestCase):
 
         # Setup model and coder
         model = Model("gpt-3.5-turbo")
-        coder = Coder.create(model, None, io=io, stream=True)
+        coder = await Coder.create(model, None, io=io, stream=True)
 
         # Ensure the coder shows pretty output
         coder.show_pretty = MagicMock(return_value=True)
@@ -187,7 +187,7 @@ class TestReasoning(unittest.TestCase):
             expected_content = "Final answer after reasoning"
             self.assertEqual(coder.partial_response_content.strip(), expected_content)
 
-    def test_send_with_think_tags(self):
+    async def test_send_with_think_tags(self):
         """Test that <think> tags are properly processed and formatted."""
         # Setup IO with no pretty
         io = InputOutput(pretty=False)
@@ -196,7 +196,7 @@ class TestReasoning(unittest.TestCase):
         # Setup model and coder
         model = Model("gpt-3.5-turbo")
         model.reasoning_tag = "think"  # Set to remove <think> tags
-        coder = Coder.create(model, None, io=io, stream=False)
+        coder = await Coder.create(model, None, io=io, stream=False)
 
         # Test data
         reasoning_content = "My step-by-step reasoning process"
@@ -256,7 +256,7 @@ class TestReasoning(unittest.TestCase):
             coder.remove_reasoning_content()
             self.assertEqual(coder.partial_response_content.strip(), main_content.strip())
 
-    def test_send_with_think_tags_stream(self):
+    async def test_send_with_think_tags_stream(self):
         """Test that streaming with <think> tags is properly processed and formatted."""
         # Setup IO with pretty output for streaming
         io = InputOutput(pretty=True)
@@ -266,7 +266,7 @@ class TestReasoning(unittest.TestCase):
         # Setup model and coder
         model = Model("gpt-3.5-turbo")
         model.reasoning_tag = "think"  # Set to remove <think> tags
-        coder = Coder.create(model, None, io=io, stream=True)
+        coder = await Coder.create(model, None, io=io, stream=True)
 
         # Ensure the coder shows pretty output
         coder.show_pretty = MagicMock(return_value=True)
@@ -399,7 +399,7 @@ End"""
         text = "Just regular text"
         self.assertEqual(remove_reasoning_content(text, "think"), text)
 
-    def test_send_with_reasoning(self):
+    async def test_send_with_reasoning(self):
         """Test that reasoning content from the 'reasoning' attribute is properly formatted
         and output."""
         # Setup IO with no pretty
@@ -408,7 +408,7 @@ End"""
 
         # Setup model and coder
         model = Model("gpt-3.5-turbo")
-        coder = Coder.create(model, None, io=io, stream=False)
+        coder = await Coder.create(model, None, io=io, stream=False)
 
         # Test data
         reasoning_content = "My step-by-step reasoning process"
@@ -464,7 +464,7 @@ End"""
                 reasoning_pos, main_pos, "Reasoning content should appear before main content"
             )
 
-    def test_send_with_reasoning_stream(self):
+    async def test_send_with_reasoning_stream(self):
         """Test that streaming reasoning content from the 'reasoning' attribute is properly
         formatted and output."""
         # Setup IO with pretty output for streaming
@@ -474,7 +474,7 @@ End"""
 
         # Setup model and coder
         model = Model("gpt-3.5-turbo")
-        coder = Coder.create(model, None, io=io, stream=True)
+        coder = await Coder.create(model, None, io=io, stream=True)
 
         # Ensure the coder shows pretty output
         coder.show_pretty = MagicMock(return_value=True)

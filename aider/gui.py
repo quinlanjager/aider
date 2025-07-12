@@ -3,6 +3,7 @@
 import os
 import random
 import sys
+import asyncio
 
 import streamlit as st
 
@@ -67,8 +68,8 @@ def get_state():
 
 
 @st.cache_resource
-def get_coder():
-    coder = cli_main(return_coder=True)
+async def get_coder():
+    coder = await cli_main(return_coder=True)
     if not isinstance(coder, Coder):
         raise ValueError(coder)
     if not coder.repo:
@@ -357,8 +358,8 @@ class GUI:
 
         return st.button(args, **kwargs)
 
-    def __init__(self):
-        self.coder = get_coder()
+    def __init__(self, coder):
+        self.coder = coder
         self.state = get_state()
 
         # Force the coder to cooperate, regardless of cmd line args
@@ -521,7 +522,7 @@ class GUI:
             self.prompt = reply
 
 
-def gui_main():
+async def gui_main():
     st.set_page_config(
         layout="wide",
         page_title="Aider",
@@ -537,9 +538,10 @@ def gui_main():
     # for key, value in config_options.items():
     #    print(f"{key}: {value.value}")
 
-    GUI()
+    coder = await get_coder()
+    GUI(coder)
 
 
 if __name__ == "__main__":
-    status = gui_main()
+    status = asyncio.run(gui_main())
     sys.exit(status)
