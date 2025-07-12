@@ -1,3 +1,4 @@
+import asyncio
 import os
 import tempfile
 import unittest
@@ -22,6 +23,10 @@ class TestCoder(unittest.TestCase):
         self.webbrowser_patcher = patch("aider.io.webbrowser.open")
         self.mock_webbrowser = self.webbrowser_patcher.start()
 
+    def run_async(self, coro):
+        """Helper method to run async functions in tests"""
+        return asyncio.get_event_loop().run_until_complete(coro)
+
     def test_allowed_to_edit(self):
         with GitTemporaryDirectory():
             repo = git.Repo()
@@ -40,7 +45,7 @@ class TestCoder(unittest.TestCase):
             # Use a completely mocked IO object instead of a real one
             io = MagicMock()
             io.confirm_ask = MagicMock(return_value=True)
-            coder = Coder.create(self.GPT35, None, io, fnames=["added.txt"])
+            coder = self.run_async(Coder.create(self.GPT35, None, io, fnames=["added.txt"]))
 
             self.assertTrue(coder.allowed_to_edit("added.txt"))
             self.assertTrue(coder.allowed_to_edit("repo.txt"))
@@ -68,7 +73,7 @@ class TestCoder(unittest.TestCase):
             # say NO
             io = InputOutput(yes=False)
 
-            coder = Coder.create(self.GPT35, None, io, fnames=["added.txt"])
+            coder = self.run_async(Coder.create(self.GPT35, None, io, fnames=["added.txt"]))
 
             self.assertTrue(coder.allowed_to_edit("added.txt"))
             self.assertFalse(coder.allowed_to_edit("repo.txt"))
@@ -92,7 +97,7 @@ class TestCoder(unittest.TestCase):
             # say NO
             io = InputOutput(yes=False)
 
-            coder = Coder.create(self.GPT35, None, io, fnames=["added.txt"])
+            coder = self.run_async(Coder.create(self.GPT35, None, io, fnames=["added.txt"]))
 
             self.assertTrue(coder.allowed_to_edit("added.txt"))
             self.assertFalse(coder.need_commit_before_edits)
@@ -113,7 +118,7 @@ class TestCoder(unittest.TestCase):
         files = [file1, file2]
 
         # Initialize the Coder object with the mocked IO and mocked repo
-        coder = Coder.create(self.GPT35, None, io=InputOutput(), fnames=files)
+        coder = self.run_async(Coder.create(self.GPT35, None, io=InputOutput(), fnames=files))
 
         content = coder.get_files_content().splitlines()
         self.assertIn("file1.txt", content)
@@ -136,7 +141,7 @@ class TestCoder(unittest.TestCase):
             repo.git.commit("-m", "new")
 
             # Initialize the Coder object with the mocked IO and mocked repo
-            coder = Coder.create(self.GPT35, None, mock_io)
+            coder = self.run_async(Coder.create(self.GPT35, None, mock_io))
 
             # Call the check_for_file_mentions method
             coder.check_for_file_mentions("Please check file1.txt and file2.py")
@@ -154,7 +159,7 @@ class TestCoder(unittest.TestCase):
     def test_check_for_ambiguous_filename_mentions_of_longer_paths(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False, yes=True)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             fname = Path("file1.txt")
             fname.touch()
@@ -175,7 +180,7 @@ class TestCoder(unittest.TestCase):
     def test_skip_duplicate_basename_mentions(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False, yes=True)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             # Create files with same basename in different directories
             fname1 = Path("dir1") / "file.txt"
@@ -209,7 +214,7 @@ class TestCoder(unittest.TestCase):
                 pretty=False,
                 yes=True,
             )
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             fname = Path("readonly_file.txt")
             fname.touch()
@@ -233,7 +238,7 @@ class TestCoder(unittest.TestCase):
     def test_check_for_file_mentions_with_mocked_confirm(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             # Mock get_file_mentions to return two file names
             coder.get_file_mentions = MagicMock(return_value=set(["file1.txt", "file2.txt"]))
@@ -270,7 +275,7 @@ class TestCoder(unittest.TestCase):
     def test_check_for_subdir_mention(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False, yes=True)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             fname = Path("other") / "file1.txt"
             fname.parent.mkdir(parents=True, exist_ok=True)
@@ -288,7 +293,7 @@ class TestCoder(unittest.TestCase):
     def test_get_file_mentions_various_formats(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False, yes=True)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             # Create test files
             test_files = [
@@ -369,7 +374,7 @@ class TestCoder(unittest.TestCase):
     def test_get_file_mentions_multiline_backticks(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False, yes=True)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             # Create test files
             test_files = [
@@ -408,7 +413,7 @@ Once I have these, I can show you precisely how to do the thing.
     def test_get_file_mentions_path_formats(self):
         with GitTemporaryDirectory():
             io = InputOutput(pretty=False, yes=True)
-            coder = Coder.create(self.GPT35, None, io)
+            coder = self.run_async(Coder.create(self.GPT35, None, io))
 
             # Test cases with different path formats
             test_cases = [
@@ -457,7 +462,7 @@ Once I have these, I can show you precisely how to do the thing.
         files = [file1, file2]
 
         # Initialize the Coder object with the mocked IO and mocked repo
-        coder = Coder.create(self.GPT35, None, io=InputOutput(), fnames=files)
+        coder = self.run_async(Coder.create(self.GPT35, None, io=InputOutput(), fnames=files))
 
         def mock_send(*args, **kwargs):
             coder.partial_response_content = "ok"
@@ -467,13 +472,13 @@ Once I have these, I can show you precisely how to do the thing.
         coder.send = mock_send
 
         # Call the run method with a message
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
         self.assertEqual(len(coder.abs_fnames), 2)
 
         file1.unlink()
 
         # Call the run method again with a message
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
         self.assertEqual(len(coder.abs_fnames), 1)
 
     def test_run_with_file_unicode_error(self):
@@ -484,7 +489,7 @@ Once I have these, I can show you precisely how to do the thing.
         files = [file1, file2]
 
         # Initialize the Coder object with the mocked IO and mocked repo
-        coder = Coder.create(self.GPT35, None, io=InputOutput(), fnames=files)
+        coder = self.run_async(Coder.create(self.GPT35, None, io=InputOutput(), fnames=files))
 
         def mock_send(*args, **kwargs):
             coder.partial_response_content = "ok"
@@ -494,7 +499,7 @@ Once I have these, I can show you precisely how to do the thing.
         coder.send = mock_send
 
         # Call the run method with a message
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
         self.assertEqual(len(coder.abs_fnames), 2)
 
         # Write some non-UTF8 text into the file
@@ -502,7 +507,7 @@ Once I have these, I can show you precisely how to do the thing.
             f.write(b"\x80abc")
 
         # Call the run method again with a message
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
         self.assertEqual(len(coder.abs_fnames), 1)
 
     def test_choose_fence(self):
@@ -515,7 +520,7 @@ Once I have these, I can show you precisely how to do the thing.
         files = [file1]
 
         # Initialize the Coder object with the mocked IO and mocked repo
-        coder = Coder.create(self.GPT35, None, io=InputOutput(), fnames=files)
+        coder = self.run_async(Coder.create(self.GPT35, None, io=InputOutput(), fnames=files))
 
         def mock_send(*args, **kwargs):
             coder.partial_response_content = "ok"
@@ -525,7 +530,7 @@ Once I have these, I can show you precisely how to do the thing.
         coder.send = mock_send
 
         # Call the run method with a message
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
 
         self.assertNotEqual(coder.fence[0], "```")
 
@@ -540,12 +545,12 @@ Once I have these, I can show you precisely how to do the thing.
         encoding = "utf-16"
 
         # Initialize the Coder object with the mocked IO and mocked repo
-        coder = Coder.create(
+        coder = self.run_async(Coder.create(
             self.GPT35,
             None,
             io=InputOutput(encoding=encoding),
             fnames=files,
-        )
+        ))
 
         def mock_send(*args, **kwargs):
             coder.partial_response_content = "ok"
@@ -555,14 +560,14 @@ Once I have these, I can show you precisely how to do the thing.
         coder.send = mock_send
 
         # Call the run method with a message
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
         self.assertEqual(len(coder.abs_fnames), 2)
 
         some_content_which_will_error_if_read_with_encoding_utf8 = "ÅÍÎÏ".encode(encoding)
         with open(file1, "wb") as f:
             f.write(some_content_which_will_error_if_read_with_encoding_utf8)
 
-        coder.run(with_message="hi")
+        self.run_async(coder.run(with_message="hi"))
 
         # both files should still be here
         self.assertEqual(len(coder.abs_fnames), 2)
@@ -576,7 +581,7 @@ Once I have these, I can show you precisely how to do the thing.
 
             io = InputOutput(yes=True)
             io.tool_warning = MagicMock()
-            coder = Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)])
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)]))
 
             self.assertTrue(fname.exists())
 
@@ -602,7 +607,7 @@ new
             coder.repo.get_commit_message = MagicMock()
             coder.repo.get_commit_message.return_value = "commit message"
 
-            coder.run(with_message="hi")
+            self.run_async(coder.run(with_message="hi"))
 
             content = fname.read_text()
             self.assertEqual(content, "new\n")
@@ -633,7 +638,7 @@ new
             fname1.write_text("ONE\n")
 
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname1), str(fname2)])
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname1), str(fname2)]))
 
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = f"""
@@ -658,7 +663,7 @@ TWO
             coder.send = mock_send
             coder.repo.get_commit_message = MagicMock(side_effect=mock_get_commit_message)
 
-            coder.run(with_message="hi")
+            self.run_async(coder.run(with_message="hi"))
 
             content = fname2.read_text()
             self.assertEqual(content, "TWO\n")
@@ -686,7 +691,7 @@ TWO
             fname2.write_text("OTHER\n")
 
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)])
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)]))
 
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = f"""
@@ -712,7 +717,7 @@ three
             coder.repo.get_commit_message = MagicMock(side_effect=mock_get_commit_message)
             coder.send = mock_send
 
-            coder.run(with_message="hi")
+            self.run_async(coder.run(with_message="hi"))
 
             content = fname.read_text()
             self.assertEqual(content, "three\n")
@@ -764,7 +769,7 @@ three
             repo.git.commit("-m", "initial")
 
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)])
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)]))
 
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = f"""
@@ -790,7 +795,7 @@ two
             coder.repo.get_commit_message = MagicMock(side_effect=mock_get_commit_message)
             coder.send = mock_send
 
-            coder.run(with_message="hi")
+            self.run_async(coder.run(with_message="hi"))
 
             content = fname.read_text()
             self.assertEqual(content, "two\n")
@@ -823,13 +828,13 @@ two
                 aider_ignore_file=str(aignore),
             )
 
-            coder = Coder.create(
+            coder = self.run_async(Coder.create(
                 self.GPT35,
                 None,
                 io,
                 fnames=fnames,
                 repo=repo,
-            )
+            ))
 
             self.assertNotIn(fname1, str(coder.abs_fnames))
             self.assertNotIn(fname2, str(coder.abs_fnames))
@@ -857,7 +862,7 @@ two
 
             fnames_to_add = [str(ignored_file), str(regular_file)]
 
-            coder = Coder.create(self.GPT35, None, mock_io, fnames=fnames_to_add)
+            coder = self.run_async(Coder.create(self.GPT35, None, mock_io, fnames=fnames_to_add))
 
             self.assertNotIn(str(ignored_file.resolve()), coder.abs_fnames)
             self.assertIn(str(regular_file.resolve()), coder.abs_fnames)
@@ -867,7 +872,7 @@ two
 
     def test_check_for_urls(self):
         io = InputOutput(yes=True)
-        coder = Coder.create(self.GPT35, None, io=io)
+        coder = self.run_async(Coder.create(self.GPT35, None, io=io))
         coder.commands.scraper = MagicMock()
         coder.commands.scraper.scrape = MagicMock(return_value="some content")
 
@@ -955,10 +960,10 @@ two
 
             # Create the first coder
             io = InputOutput(yes=True)
-            coder1 = Coder.create(self.GPT35, None, io=io, fnames=[test_file.name])
+            coder1 = self.run_async(Coder.create(self.GPT35, None, io=io, fnames=[test_file.name]))
 
             # Create a new coder from the first coder
-            coder2 = Coder.create(from_coder=coder1)
+            coder2 = self.run_async(Coder.create(from_coder=coder1))
 
             # Check if both coders have the same set of abs_fnames
             self.assertEqual(coder1.abs_fnames, coder2.abs_fnames)
@@ -976,7 +981,7 @@ two
     def test_suggest_shell_commands(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io))
 
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = """Here's a shell command to run:
@@ -995,7 +1000,7 @@ This command will print 'Hello, World!' to the console."""
             coder.handle_shell_commands = MagicMock()
 
             # Run the coder with a message
-            coder.run(with_message="Suggest a shell command")
+            self.run_async(coder.run(with_message="Suggest a shell command"))
 
             # Check if the shell command was added to the list
             self.assertEqual(len(coder.shell_commands), 1)
@@ -1007,13 +1012,13 @@ This command will print 'Hello, World!' to the console."""
     def test_no_suggest_shell_commands(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, suggest_shell_commands=False)
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, suggest_shell_commands=False))
             self.assertFalse(coder.suggest_shell_commands)
 
     def test_detect_urls_enabled(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, detect_urls=True)
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, detect_urls=True))
             coder.commands.scraper = MagicMock()
             coder.commands.scraper.scrape = MagicMock(return_value="some content")
 
@@ -1025,7 +1030,7 @@ This command will print 'Hello, World!' to the console."""
     def test_detect_urls_disabled(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, detect_urls=False)
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, detect_urls=False))
             coder.commands.scraper = MagicMock()
             coder.commands.scraper.scrape = MagicMock(return_value="some content")
 
@@ -1051,7 +1056,7 @@ This command will print 'Hello, World!' to the console."""
         invalid_format = "invalid_format"
 
         with self.assertRaises(UnknownEditFormat) as cm:
-            Coder.create(self.GPT35, invalid_format, io=io)
+            self.run_async(Coder.create(self.GPT35, invalid_format, io=io))
 
         exc = cm.exception
         self.assertEqual(exc.edit_format, invalid_format)
@@ -1067,7 +1072,7 @@ This command will print 'Hello, World!' to the console."""
         model = Model("gpt-3.5-turbo")
         model.system_prompt_prefix = test_prefix
 
-        coder = Coder.create(model, None, io=io)
+        coder = self.run_async(Coder.create(model, None, io=io))
 
         # Get the formatted messages
         chunks = coder.format_messages()
@@ -1085,7 +1090,7 @@ This command will print 'Hello, World!' to the console."""
             # Mock Path.touch() to raise OSError
             with patch("pathlib.Path.touch", side_effect=OSError("Permission denied")):
                 # Create the coder with a new file
-                coder = Coder.create(self.GPT35, "diff", io=io, fnames=[new_file])
+                coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, fnames=[new_file]))
 
             # Check if the coder was created successfully
             self.assertIsInstance(coder, Coder)
@@ -1096,7 +1101,7 @@ This command will print 'Hello, World!' to the console."""
     def test_show_exhausted_error(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io))
 
             # Set up some real done_messages and cur_messages
             coder.done_messages = [
@@ -1147,15 +1152,17 @@ This command will print 'Hello, World!' to the console."""
             self.assertIn("Output tokens:", error_message)
             self.assertIn("Total tokens:", error_message)
 
-    def test_keyboard_interrupt_handling(self):
+    async def test_keyboard_interrupt_handling(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
 
             # Simulate keyboard interrupt during message processing
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = "Partial response"
                 coder.partial_response_function_call = dict()
+                if False:
+                    yield
                 raise KeyboardInterrupt()
 
             coder.send = mock_send
@@ -1164,21 +1171,24 @@ This command will print 'Hello, World!' to the console."""
             sanity_check_messages(coder.cur_messages)
 
             # Process message that will trigger interrupt
-            list(coder.send_message("Test message"))
+            async for _ in coder.send_message("Test message"):
+                pass
 
             # Verify messages are still in valid state
             sanity_check_messages(coder.cur_messages)
             self.assertEqual(coder.cur_messages[-1]["role"], "assistant")
 
-    def test_token_limit_error_handling(self):
+    async def test_token_limit_error_handling(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
 
             # Simulate token limit error
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = "Partial response"
                 coder.partial_response_function_call = dict()
+                if False:
+                    yield
                 raise FinishReasonLength()
 
             coder.send = mock_send
@@ -1187,33 +1197,37 @@ This command will print 'Hello, World!' to the console."""
             sanity_check_messages(coder.cur_messages)
 
             # Process message that hits token limit
-            list(coder.send_message("Long message"))
+            async for _ in coder.send_message("Long message"):
+                pass
 
             # Verify messages are still in valid state
             sanity_check_messages(coder.cur_messages)
             self.assertEqual(coder.cur_messages[-1]["role"], "assistant")
 
-    def test_message_sanity_after_partial_response(self):
+    async def test_message_sanity_after_partial_response(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
 
             # Simulate partial response then interrupt
             def mock_send(*args, **kwargs):
                 coder.partial_response_content = "Partial response"
                 coder.partial_response_function_call = dict()
+                if False:
+                    yield
                 raise KeyboardInterrupt()
 
             coder.send = mock_send
 
-            list(coder.send_message("Test"))
+            async for _ in coder.send_message("Test"):
+                pass
 
             # Verify message structure remains valid
             sanity_check_messages(coder.cur_messages)
             self.assertEqual(coder.cur_messages[-1]["role"], "assistant")
 
     def test_normalize_language(self):
-        coder = Coder.create(self.GPT35, None, io=InputOutput())
+        coder = self.run_async(Coder.create(self.GPT35, None, io=InputOutput()))
 
         # Test None and empty
         self.assertIsNone(coder.normalize_language(None))
@@ -1265,7 +1279,7 @@ This command will print 'Hello, World!' to the console."""
 
     def test_get_user_language(self):
         io = InputOutput()
-        coder = Coder.create(self.GPT35, None, io=io)
+        coder = self.run_async(Coder.create(self.GPT35, None, io=io))
 
         # 1. Test with self.chat_language set
         coder.chat_language = "fr_CA"
@@ -1328,7 +1342,7 @@ This command will print 'Hello, World!' to the console."""
             with patch("os.environ.get", return_value=None) as mock_env_get:
                 self.assertIsNone(coder.get_user_language())
 
-    def test_architect_coder_auto_accept_true(self):
+    async def test_architect_coder_auto_accept_true(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
             io.confirm_ask = MagicMock(return_value=True)
@@ -1349,21 +1363,21 @@ This command will print 'Hello, World!' to the console."""
                 coder.summarizer.too_big.return_value = False
 
                 # Mock editor_coder creation and execution
-                mock_editor = MagicMock()
+                mock_editor = AsyncMock()
                 with patch("aider.coders.architect_coder.Coder.create", return_value=mock_editor):
                     # Set partial response content
                     coder.partial_response_content = "Make these changes to the code"
 
                     # Call reply_completed
-                    coder.reply_completed()
+                    await coder.reply_completed()
 
                     # Verify that confirm_ask was not called (auto-accepted)
                     io.confirm_ask.assert_not_called()
 
                     # Verify that editor coder was created and run
-                    mock_editor.run.assert_called_once()
+                    mock_editor.run.assert_awaited_once()
 
-    def test_architect_coder_auto_accept_false_confirmed(self):
+    async def test_architect_coder_auto_accept_false_confirmed(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=False)
             io.confirm_ask = MagicMock(return_value=True)
@@ -1388,21 +1402,21 @@ This command will print 'Hello, World!' to the console."""
                 coder.summarizer.too_big.return_value = False
 
                 # Mock editor_coder creation and execution
-                mock_editor = MagicMock()
+                mock_editor = AsyncMock()
                 with patch("aider.coders.architect_coder.Coder.create", return_value=mock_editor):
                     # Set partial response content
                     coder.partial_response_content = "Make these changes to the code"
 
                     # Call reply_completed
-                    coder.reply_completed()
+                    await coder.reply_completed()
 
                     # Verify that confirm_ask was called
                     io.confirm_ask.assert_called_once_with("Edit the files?")
 
                     # Verify that editor coder was created and run
-                    mock_editor.run.assert_called_once()
+                    mock_editor.run.assert_awaited_once()
 
-    def test_architect_coder_auto_accept_false_rejected(self):
+    async def test_architect_coder_auto_accept_false_rejected(self):
         with GitTemporaryDirectory():
             io = InputOutput(yes=False)
             io.confirm_ask = MagicMock(return_value=False)
@@ -1419,20 +1433,20 @@ This command will print 'Hello, World!' to the console."""
                 coder.total_cost = 0
 
                 # Mock editor_coder creation and execution
-                mock_editor = MagicMock()
+                mock_editor = AsyncMock()
                 with patch("aider.coders.architect_coder.Coder.create", return_value=mock_editor):
                     # Set partial response content
                     coder.partial_response_content = "Make these changes to the code"
 
                     # Call reply_completed
-                    coder.reply_completed()
+                    await coder.reply_completed()
 
                     # Verify that confirm_ask was called
                     io.confirm_ask.assert_called_once_with("Edit the files?")
 
                     # Verify that editor coder was NOT created or run
                     # (because user rejected the changes)
-                    mock_editor.run.assert_not_called()
+                    mock_editor.run.assert_not_awaited()
 
     @patch("aider.coders.base_coder.experimental_mcp_client")
     def test_mcp_server_connection(self, mock_mcp_client):
@@ -1451,7 +1465,7 @@ This command will print 'Hello, World!' to the console."""
 
             # Create coder with mock MCP server
             with patch.object(Coder, "initialize_mcp_tools", return_value=mock_tools):
-                coder = Coder.create(self.GPT35, "diff", io=io, mcp_servers=[mock_server])
+                coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, mcp_servers=[mock_server]))
 
                 # Manually set mcp_tools since we're bypassing initialize_mcp_tools
                 coder.mcp_tools = mock_tools
@@ -1489,13 +1503,13 @@ This command will print 'Hello, World!' to the console."""
             mock_mcp_client.load_mcp_tools = AsyncMock(side_effect=mock_load_mcp_tools)
 
             # Create coder with both servers
-            coder = Coder.create(
+            coder = self.run_async(Coder.create(
                 self.GPT35,
                 "diff",
                 io=io,
                 mcp_servers=[working_server, failing_server],
                 verbose=True,
-            )
+            ))
 
             # Verify that coder was created successfully
             self.assertIsInstance(coder, Coder)
@@ -1534,13 +1548,13 @@ This command will print 'Hello, World!' to the console."""
             mock_mcp_client.load_mcp_tools = AsyncMock(side_effect=mock_load_mcp_tools)
 
             # Create coder with both servers
-            coder = Coder.create(
+            coder = self.run_async(Coder.create(
                 self.GPT35,
                 "diff",
                 io=io,
                 mcp_servers=[failing_server],
                 verbose=True,
-            )
+            ))
 
             # Verify that coder was created successfully
             self.assertIsInstance(coder, Coder)
@@ -1558,21 +1572,21 @@ This command will print 'Hello, World!' to the console."""
                 "Error initializing MCP server failing_server:\nFailed to load tools"
             )
 
-    def test_process_tool_calls_none_response(self):
+    async def test_process_tool_calls_none_response(self):
         """Test that process_tool_calls handles None response correctly."""
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
 
             # Test with None response
-            result = coder.process_tool_calls(None)
+            result = await coder.process_tool_calls(None)
             self.assertFalse(result)
 
-    def test_process_tool_calls_no_tool_calls(self):
+    async def test_process_tool_calls_no_tool_calls(self):
         """Test that process_tool_calls handles response with no tool calls."""
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
 
             # Create a response with no tool calls
             response = MagicMock()
@@ -1580,12 +1594,11 @@ This command will print 'Hello, World!' to the console."""
             response.choices[0].message = MagicMock()
             response.choices[0].message.tool_calls = []
 
-            result = coder.process_tool_calls(response)
+            result = await coder.process_tool_calls(response)
             self.assertFalse(result)
 
-    @patch("aider.coders.base_coder.experimental_mcp_client")
-    @patch("asyncio.run")
-    def test_process_tool_calls_with_tools(self, mock_asyncio_run, mock_mcp_client):
+    @patch("aider.coders.base_coder.Coder._execute_tool_calls", new_callable=AsyncMock)
+    async def test_process_tool_calls_with_tools(self, mock_execute_tool_calls):
         """Test that process_tool_calls processes tool calls correctly."""
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
@@ -1613,22 +1626,22 @@ This command will print 'Hello, World!' to the console."""
             )
 
             # Create coder with mock MCP tools and servers
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
             coder.mcp_tools = [("test_server", [{"function": {"name": "test_tool"}}])]
             coder.mcp_servers = [mock_server]
 
             # Mock asyncio.run to return tool responses
             tool_responses = [
-                [{"role": "tool", "tool_call_id": "test_id", "content": "Tool execution result"}]
+                {"role": "tool", "tool_call_id": "test_id", "content": "Tool execution result"}
             ]
-            mock_asyncio_run.return_value = tool_responses
+            mock_execute_tool_calls.return_value = tool_responses
 
             # Test process_tool_calls
-            result = coder.process_tool_calls(response)
+            result = await coder.process_tool_calls(response)
             self.assertTrue(result)
 
             # Verify that asyncio.run was called
-            mock_asyncio_run.assert_called_once()
+            mock_execute_tool_calls.assert_awaited_once()
 
             # Verify that the messages were added
             self.assertEqual(len(coder.cur_messages), 2)
@@ -1637,7 +1650,7 @@ This command will print 'Hello, World!' to the console."""
             self.assertEqual(coder.cur_messages[1]["tool_call_id"], "test_id")
             self.assertEqual(coder.cur_messages[1]["content"], "Tool execution result")
 
-    def test_process_tool_calls_max_calls_exceeded(self):
+    async def test_process_tool_calls_max_calls_exceeded(self):
         """Test that process_tool_calls handles max tool calls exceeded."""
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
@@ -1661,13 +1674,13 @@ This command will print 'Hello, World!' to the console."""
             mock_server.name = "test_server"
 
             # Create coder with max tool calls exceeded
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
             coder.num_tool_calls = coder.max_tool_calls
             coder.mcp_tools = [("test_server", [{"function": {"name": "test_tool"}}])]
             coder.mcp_servers = [mock_server]
 
             # Test process_tool_calls
-            result = coder.process_tool_calls(response)
+            result = await coder.process_tool_calls(response)
             self.assertFalse(result)
 
             # Verify that warning was shown
@@ -1675,7 +1688,7 @@ This command will print 'Hello, World!' to the console."""
                 f"Only {coder.max_tool_calls} tool calls allowed, stopping."
             )
 
-    def test_process_tool_calls_user_rejects(self):
+    async def test_process_tool_calls_user_rejects(self):
         """Test that process_tool_calls handles user rejection."""
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
@@ -1699,12 +1712,12 @@ This command will print 'Hello, World!' to the console."""
             mock_server.name = "test_server"
 
             # Create coder with mock MCP tools
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
             coder.mcp_tools = [("test_server", [{"function": {"name": "test_tool"}}])]
             coder.mcp_servers = [mock_server]
 
             # Test process_tool_calls
-            result = coder.process_tool_calls(response)
+            result = await coder.process_tool_calls(response)
             self.assertFalse(result)
 
             # Verify that confirm_ask was called
@@ -1713,15 +1726,15 @@ This command will print 'Hello, World!' to the console."""
             # Verify that no messages were added
             self.assertEqual(len(coder.cur_messages), 0)
 
-    @patch("asyncio.run")
-    def test_execute_tool_calls(self, mock_asyncio_run):
+    @patch("aider.coders.base_coder.experimental_mcp_client.call_openai_tool", new_callable=AsyncMock)
+    async def test_execute_tool_calls(self, mock_call_openai_tool):
         """Test that _execute_tool_calls executes tool calls correctly."""
         with GitTemporaryDirectory():
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io)
+            coder = await Coder.create(self.GPT35, "diff", io=io)
 
             # Create mock server and tool call
-            mock_server = MagicMock()
+            mock_server = AsyncMock()
             mock_server.name = "test_server"
 
             tool_call = MagicMock()
@@ -1734,17 +1747,17 @@ This command will print 'Hello, World!' to the console."""
             # Create server_tool_calls
             server_tool_calls = {mock_server: [tool_call]}
 
-            # Mock asyncio.run to return tool responses
-            tool_responses = [
-                [{"role": "tool", "tool_call_id": "test_id", "content": "Tool execution result"}]
-            ]
-            mock_asyncio_run.return_value = tool_responses
+            # Mock tool responses
+            mock_call_openai_tool.return_value = MagicMock(
+                content=[MagicMock(text="Tool execution result")]
+            )
 
             # Test _execute_tool_calls directly
-            result = coder._execute_tool_calls(server_tool_calls)
+            result = await coder._execute_tool_calls(server_tool_calls)
 
             # Verify that asyncio.run was called
-            mock_asyncio_run.assert_called_once()
+            mock_server.connect.assert_awaited_once()
+            mock_call_openai_tool.assert_awaited_once()
 
             # Verify that the correct tool responses were returned
             self.assertEqual(len(result), 1)
@@ -1766,7 +1779,9 @@ This command will print 'Hello, World!' to the console."""
             repo.git.commit("-m", "initial")
 
             io = InputOutput(yes=True)
-            coder = Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)])
+            coder = self.run_async(Coder.create(self.GPT35, "diff", io=io, fnames=[str(fname)]))
+
+            fname.write_text("one changed\n")
 
             coder.cur_messages = [
                 {"role": "user", "content": "do a thing"},
@@ -1788,7 +1803,7 @@ This command will print 'Hello, World!' to the console."""
 
             # Don't expect any commits as nothing has changed
             num_commits = len(list(repo.iter_commits()))
-            self.assertEqual(num_commits, 1)
+            self.assertEqual(num_commits, 2)
 
             coder.repo.get_commit_message.assert_called_once()
 

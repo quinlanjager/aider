@@ -1,3 +1,4 @@
+import asyncio
 import time
 import unittest
 from unittest.mock import MagicMock
@@ -12,7 +13,12 @@ from aider.io import InputOutput
 from aider.models import Model
 
 
+def _run_async(coro):
+    """Helper method to run async functions in tests"""
+    return asyncio.get_event_loop().run_until_complete(coro)
+
 class TestHelp(unittest.TestCase):
+
     @staticmethod
     def retry_with_backoff(func, max_time=60, initial_delay=1, backoff_factor=2):
         """
@@ -48,20 +54,20 @@ class TestHelp(unittest.TestCase):
         raise Exception("Retry timeout exceeded but no exception was caught")
 
     @classmethod
-    def setUpClass(cls):
+    async def setUpClass(cls):
         io = InputOutput(pretty=False, yes=True)
 
         GPT35 = Model("gpt-3.5-turbo")
 
-        coder = Coder.create(GPT35, None, io)
+        coder = _run_async(Coder.create(GPT35, None, io))
         commands = Commands(io, coder)
 
         help_coder_run = MagicMock(return_value="")
         aider.coders.HelpCoder.run = help_coder_run
 
-        def run_help_command():
+        async def run_help_command():
             try:
-                commands.cmd_help("hi")
+                await commands.cmd_help("hi")
             except aider.commands.SwitchCoder:
                 pass
             else:
@@ -69,7 +75,7 @@ class TestHelp(unittest.TestCase):
                 assert False, "SwitchCoder exception was not raised"
 
         # Use retry with backoff for the help command that loads models
-        cls.retry_with_backoff(run_help_command)
+        cls.retry_with_backoff(await run_help_command)
 
         help_coder_run.assert_called_once()
 

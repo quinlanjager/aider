@@ -1103,7 +1103,7 @@ class Commands:
         self.io.tool_output()
         self.io.tool_output("Use `/help <question>` to ask questions about how to use aider.")
 
-    def cmd_help(self, args):
+    async def cmd_help(self, args):
         "Ask questions about aider"
 
         if not args.strip():
@@ -1121,7 +1121,7 @@ class Commands:
 
             self.help = Help()
 
-        coder = Coder.create(
+        coder = await Coder.create(
             io=self.io,
             from_coder=self.coder,
             edit_format="help",
